@@ -1,0 +1,156 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Project Gutenberg Character Analyzer</title>
+  <!-- Load vis-network UMD -->
+  <script src="https://unpkg.com/vis-network@9.1.2/dist/vis-network.min.js"></script>
+  <link rel="stylesheet" href="https://unpkg.com/vis-network@9.1.2/styles/vis-network.min.css" />
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #ffe4e1;
+      margin: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 2rem;
+    }
+    h1, h2 {
+      color: #333;
+      text-align: center;
+    }
+    form {
+      margin-bottom: 1rem;
+      display: flex;
+      justify-content: center;
+    }
+    input[type="text"] {
+      padding: 0.5rem;
+      width: 300px;
+      margin-right: 0.5rem;
+      border-radius: 5px;
+      border: 1px solid #ccc;
+      font-size: 1rem;
+    }
+    button {
+      padding: 0.5rem 1rem;
+      border: none;
+      border-radius: 5px;
+      background-color: #ff69b4;
+      color: white;
+      cursor: pointer;
+      font-size: 1rem;
+    }
+    button:hover {
+      background-color: #ff1493;
+    }
+    details {
+      max-width: 900px;
+      width: 100%;
+      background: #fff0f5;
+      padding: 1rem;
+      border-radius: 5px;
+      margin-bottom: 1rem;
+    }
+    pre {
+      background: #fff0f5;
+      padding: 1rem;
+      overflow-x: auto;
+      max-width: 900px;
+      border-radius: 5px;
+      font-size: 0.9rem;
+      line-height: 1.4;
+    }
+    #network {
+      width: 100%;
+      max-width: 900px;
+      height: 600px;
+      border: 1px solid #aaa;
+      background: white;
+      border-radius: 5px;
+      margin-top: 1rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>Project Gutenberg Character Analyzer</h1>
+  <form method="POST">
+    <input type="text" name="book_id" placeholder="Enter Book ID (e.g., 84)" required />
+    <button type="submit">Analyze</button>
+  </form>
+
+  <details>
+    <summary>View Book Content</summary>
+    <pre>{{ book_content }}</pre>
+  </details>
+
+  <h2>Character Analysis</h2>
+  <pre id="raw-json">{{ llm_output }}</pre>
+
+  <h2>Character Interaction Graph</h2>
+  <div id="network"></div>
+
+  <script>
+    try {
+      const rawText = document.getElementById('raw-json').textContent.trim();
+      let data;
+      try {
+        data = JSON.parse(rawText);
+      } catch (e) {
+        console.warn('Invalid JSON, defaulting to empty:', e);
+        data = { characters: [] };
+      }
+      const characters = data.characters || [];
+
+      // Build nodes with even smaller circles and clear labels
+      const nodes = characters.map((char, idx) => ({
+        id: idx,
+        label: char.name,
+        shape: 'circle',
+        size: 12,
+        font: { size: 12, color: '#000', face: 'Arial' }
+      }));
+
+      // Map names to IDs for edges
+      const nameToId = Object.fromEntries(nodes.map(n => [n.label, n.id]));
+      const edges = [];
+      characters.forEach(char => {
+        const from = nameToId[char.name];
+        (char.interacts_with || []).forEach(other => {
+          const to = nameToId[other];
+          if (to !== undefined) {
+            edges.push({
+              from,
+              to,
+              arrows: { to: { enabled: true, scaleFactor: 1.2 } },
+              color: { color: '#555' },
+              width: 1.5
+            });
+          }
+        });
+      });
+
+      // Draw the network with more repulsion for spread
+      const container = document.getElementById('network');
+      const options = {
+        nodes: { borderWidth: 1, borderWidthSelected: 2 },
+        edges: { smooth: { enabled: true, type: 'cubicBezier' } },
+        physics: {
+          stabilization: true,
+          barnesHut: {
+            gravitationalConstant: -4000,
+            centralGravity: 0.3,
+            springLength: 200,
+            springConstant: 0.05
+          }
+        }
+      };
+      const network = new vis.Network(container, { nodes, edges }, options);
+      network.fit({ animation: { duration: 400, easingFunction: 'easeInOutQuad' } });
+    } catch (err) {
+      console.error('Graph error:', err);
+    }
+  </script>
+</body>
+</html>
